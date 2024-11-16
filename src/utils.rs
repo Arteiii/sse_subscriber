@@ -1,7 +1,7 @@
-use log::{error, info};
 use reqwest_eventsource::{EventSource, Event};
 use reqwest_eventsource::retry::{Constant, ExponentialBackoff, Never};
 use std::time::Duration;
+use reqwest::header::USER_AGENT;
 use tokio_stream::StreamExt;
 
 pub enum RetryPolicyType {
@@ -31,7 +31,7 @@ impl RetryPolicyType {
             )),
             "never" => RetryPolicyType::Never(Never),
             _ => {
-                error!("Invalid retry policy. Defaulting to ExponentialBackoff.");
+                println!("Invalid retry policy. Defaulting to ExponentialBackoff.");
                 RetryPolicyType::Exponential(ExponentialBackoff::new(
                     Duration::from_millis(initial_delay),
                     factor,
@@ -46,16 +46,15 @@ impl RetryPolicyType {
 pub async fn subscribe_to_sse(
     url: String,
     retry_policy: RetryPolicyType,
+    user_agent: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    info!("Connecting to SSE stream at: {}", &url);
+    println!("Connecting to SSE stream at: {}", &url);
 
     let client = reqwest::Client::new();
-    let request = client.get(&url);
+    let request = client.get(&url).header(USER_AGENT, user_agent);
 
-    // Create the EventSource
     let mut es = EventSource::new(request)?;
 
-    // Set the retry policy
     match retry_policy {
         RetryPolicyType::Constant(policy) => es.set_retry_policy(Box::new(policy)),
         RetryPolicyType::Exponential(policy) => es.set_retry_policy(Box::new(policy)),
@@ -65,14 +64,14 @@ pub async fn subscribe_to_sse(
     while let Some(event) = es.next().await {
         match event {
             Ok(Event::Open) => {
-                info!("Connection opened.");
+                println!("Connection opened.");
             }
             Ok(Event::Message(msg)) => {
-                info!("Message received: Event: {}, Data: {}", msg.event, msg.data);
+                println!("Message received: Event: {}, Data: {}", msg.event, msg.data);
             }
             Err(err) => {
-                error!("Error: {}", err);
-                es.close(); // Close the EventSource when an error occurs
+                println!("Error: {}", err);
+                es.close();
                 break;
             }
         }

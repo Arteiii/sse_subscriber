@@ -1,10 +1,8 @@
 mod utils;
 
 use clap::Parser;
-use log::{error, info};
 use utils::{subscribe_to_sse, RetryPolicyType};
 use tokio::runtime::Runtime;
-use std::time::Duration;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -31,10 +29,13 @@ struct Args {
     /// Max delay for exponential backoff (in ms, ignored for constant policy)
     #[arg(long, default_value = "5000")]
     max_delay: u64,
+
+    /// User-Agent header to send with the SSE request
+    #[arg(long, default_value = "MySSEClient/1.0")]
+    user_agent: String,
 }
 
 fn main() {
-    env_logger::init();
     let args = Args::parse();
 
     let retry_policy = RetryPolicyType::from_args(
@@ -46,7 +47,7 @@ fn main() {
     );
 
     let runtime = Runtime::new().expect("Failed to create Tokio runtime");
-    if let Err(e) = runtime.block_on(subscribe_to_sse(args.url, retry_policy)) {
-        error!("Application error: {}", e);
+    if let Err(e) = runtime.block_on(subscribe_to_sse(args.url, retry_policy, &args.user_agent)) {
+        println!("Application error: {}", e);
     }
 }
